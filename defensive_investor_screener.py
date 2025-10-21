@@ -173,10 +173,14 @@ def check_rule_2_financial_condition(balance_sheet: Dict, overview: Dict) -> Tup
         
         latest = balance_sheet['annualReports'][0]
         
-        # Calculate debt/equity ratio (always shown)
-        total_debt = get_field(latest, 'totalLiabilities')
+        # Total debt = Long-term debt + Short-term debt
+        long_term_debt = get_field(latest, 'longTermDebt')
+        short_term_debt = get_field(latest, 'shortTermDebt')
+        total_debt = long_term_debt + short_term_debt
         total_equity = get_field(latest, 'totalShareholderEquity')
-        debt_to_equity_ratio = total_debt / total_equity
+        
+        # Calculate debt/equity ratio
+        debt_to_equity_ratio = total_debt / total_equity if total_equity > 0 else None
         
         # Check if utility
         sector = overview.get('Sector', '').lower()
@@ -184,9 +188,11 @@ def check_rule_2_financial_condition(balance_sheet: Dict, overview: Dict) -> Tup
         
         if is_utility:
             # Utilities: debt/equity < 2 (used as criteria)
-            passed = debt_to_equity_ratio < 2.0
+            passed = debt_to_equity_ratio is not None and debt_to_equity_ratio < 2.0
             
-            if passed:
+            if debt_to_equity_ratio is None:
+                msg = f"utility debt/equity N/A (negative equity)"
+            elif passed:
                 msg = f"utility debt/equity {debt_to_equity_ratio:.2f}"
             else:
                 msg = f"utility debt/equity {debt_to_equity_ratio:.2f} (>= 2.0)"
@@ -196,7 +202,7 @@ def check_rule_2_financial_condition(balance_sheet: Dict, overview: Dict) -> Tup
             # Industrials: current ratio > 2.0 AND long-term debt < working capital
             current_assets = get_field(latest, 'totalCurrentAssets')
             current_liabilities = get_field(latest, 'totalCurrentLiabilities')
-            long_term_debt = get_field(latest, 'longTermDebt')
+            # long_term_debt already fetched above for debt/equity calculation
             
             current_ratio = current_assets / current_liabilities
             working_capital = current_assets - current_liabilities
@@ -216,7 +222,10 @@ def check_rule_2_financial_condition(balance_sheet: Dict, overview: Dict) -> Tup
                 parts.append(f"long-term debt ${long_term_debt/1e6:.1f}M (>= working capital ${working_capital/1e6:.1f}M)")
             
             # Always show debt/equity ratio (informational only for non-utilities)
-            parts.append(f"debt/equity {debt_to_equity_ratio:.2f}")
+            if debt_to_equity_ratio is not None:
+                parts.append(f"debt/equity {debt_to_equity_ratio:.2f}")
+            else:
+                parts.append(f"debt/equity N/A (negative equity)")
             
             msg = ", ".join(parts)
             return (ratio_ok and debt_ok), msg
