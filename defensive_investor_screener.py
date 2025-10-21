@@ -12,11 +12,6 @@ Rules:
 6. P/E < 15 (3-year average earnings)
 7. P/B < 1.5
 
-Usage:
-    python defensive_investor_screener.py AAPL
-    python defensive_investor_screener.py MSFT --api-key YOUR_KEY
-    python defensive_investor_screener.py GOOGL --output results.txt
-
 Source: Graham, Benjamin; Jason Zweig. The Intelligent Investor, Rev. Ed (p. 386-387)
 """
 
@@ -178,16 +173,17 @@ def check_rule_2_financial_condition(balance_sheet: Dict, overview: Dict) -> Tup
         
         latest = balance_sheet['annualReports'][0]
         
+        # Calculate debt/equity ratio (always shown)
+        total_debt = get_field(latest, 'totalLiabilities')
+        total_equity = get_field(latest, 'totalShareholderEquity')
+        debt_to_equity_ratio = total_debt / total_equity
+        
         # Check if utility
         sector = overview.get('Sector', '').lower()
         is_utility = sector == 'utilities'
         
         if is_utility:
-            # Utilities: debt/equity < 2
-            total_debt = get_field(latest, 'totalLiabilities')
-            total_equity = get_field(latest, 'totalShareholderEquity')
-            
-            debt_to_equity_ratio = total_debt / total_equity
+            # Utilities: debt/equity < 2 (used as criteria)
             passed = debt_to_equity_ratio < 2.0
             
             if passed:
@@ -218,6 +214,9 @@ def check_rule_2_financial_condition(balance_sheet: Dict, overview: Dict) -> Tup
                 parts.append(f"long-term debt ${long_term_debt/1e6:.1f}M, working capital ${working_capital/1e6:.1f}M")
             else:
                 parts.append(f"long-term debt ${long_term_debt/1e6:.1f}M (>= working capital ${working_capital/1e6:.1f}M)")
+            
+            # Always show debt/equity ratio (informational only for non-utilities)
+            parts.append(f"debt/equity {debt_to_equity_ratio:.2f}")
             
             msg = ", ".join(parts)
             return (ratio_ok and debt_ok), msg
