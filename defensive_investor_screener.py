@@ -2,16 +2,6 @@
 """
 Evaluate stocks against Graham's 7 Rules for Defensive Investors
 
-Rules:
-1. Adequate Size of the Enterprise
-2. A Sufficiently Strong Financial Condition
-3. Earnings Stability
-4. Dividend Record 
-5. Earnings Growth
-6. Moderate Price/Earnings Ratio
-7. Moderate Ratio of Price to Assets
-
-Source: Graham, Benjamin; Jason Zweig. The Intelligent Investor, Rev. Ed (p. 386-387)
 """
 
 import time

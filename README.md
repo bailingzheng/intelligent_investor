@@ -4,13 +4,13 @@ Evaluate stocks against Benjamin Graham's 7 rules from "The Intelligent Investor
 
 ## The 7 Rules
 
-1. Market cap > $10B
-2. Current Ratio > 2.0 AND Long-term debt < Working Capital (Utilities: debt/equity < 2)
-3. Positive earnings in each of past 10 years
-4. Uninterrupted dividends >= 20 years
-5. EPS growth > 33.3% (3-year averages, 10-year period)
-6. P/E < 15 (3-year average earnings)
-7. P/B < 1.5
+1. Adequate Size of the Enterprise
+2. A Sufficiently Strong Financial Condition
+3. Earnings Stability
+4. Dividend Record 
+5. Earnings Growth
+6. Moderate Price/Earnings Ratio
+7. Moderate Ratio of Price to Assets
 
 ## Setup
 
