@@ -3,14 +3,13 @@
 Evaluate stocks against Graham's 7 Rules for Defensive Investors
 
 Rules:
-1. Market cap > $10B
-2. Utilities: debt/equity < 2
-   Non-utilities: Current Ratio > 2.0 AND Long-term debt < Working Capital
-3. Positive earnings in each of past 10 years
-4. Uninterrupted dividends >= 20 years
-5. EPS growth > 33.3% (3-year averages, 10-year period)
-6. P/E < 15 (3-year average earnings)
-7. P/B < 1.5
+1. Adequate Size of the Enterprise
+2. A Sufficiently Strong Financial Condition
+3. Earnings Stability
+4. Dividend Record 
+5. Earnings Growth
+6. Moderate Price/Earnings Ratio
+7. Moderate Ratio of Price to Assets
 
 Source: Graham, Benjamin; Jason Zweig. The Intelligent Investor, Rev. Ed (p. 386-387)
 """
@@ -155,7 +154,9 @@ def get_field(data: Dict, field: str) -> float:
 # ============================================================================
 
 def check_rule_1_size(overview: Dict) -> Tuple[bool, str]:
-    """Rule 1: Market Cap > $10B"""
+    """not less than $100 million of annual sales for an industrial company and, 
+    not less than $50 million of total assets for a public utility. 
+    """
     try:
         market_cap = get_field(overview, 'MarketCapitalization')
         passed = market_cap > Config.MIN_MARKET_CAP
@@ -166,7 +167,10 @@ def check_rule_1_size(overview: Dict) -> Tuple[bool, str]:
 
 
 def check_rule_2_financial_condition(balance_sheet: Dict, income_statement: Dict, overview: Dict) -> Tuple[bool, str]:
-    """Rule 2: Utilities check debt/equity < 2; Non-utilities check current ratio > 2 AND long-term debt < working capital; Print interest coverage (7yr) for all"""
+    """For industrial companies current assets should be at least twice current liabilities—a so-called two-to-one current ratio. 
+    Also, long-term debt should not exceed the net current assets (or “working capital”). 
+    For public utilities the debt should not exceed twice the stock equity (at book value).
+    """
     try:
         if 'annualReports' not in balance_sheet or not balance_sheet['annualReports']:
             return False, "no balance sheet data"
@@ -182,7 +186,7 @@ def check_rule_2_financial_condition(balance_sheet: Dict, income_statement: Dict
         # Calculate debt/equity ratio
         debt_to_equity_ratio = total_debt / total_equity if total_equity > 0 else None
         
-        # Calculate interest coverage for past 7 years (for all companies)
+        # Calculate interest coverage for past 7 years
         interest_coverage_list = []
         if 'annualReports' in income_statement and income_statement['annualReports']:
             for i, report in enumerate(income_statement['annualReports'][:7]):
@@ -216,7 +220,7 @@ def check_rule_2_financial_condition(balance_sheet: Dict, income_statement: Dict
             
             return passed, msg
         else:
-            # Non-utilities: current ratio > 2.0 AND long-term debt < working capital
+            # Industrials: current ratio > 2.0 AND long-term debt < working capital
             current_assets = get_field(latest, 'totalCurrentAssets')
             current_liabilities = get_field(latest, 'totalCurrentLiabilities')
             # long_term_debt already fetched above
@@ -247,7 +251,7 @@ def check_rule_2_financial_condition(balance_sheet: Dict, income_statement: Dict
 
 
 def check_rule_3_earnings_stability(income_statement: Dict) -> Tuple[bool, str]:
-    """Rule 3: Positive earnings in past 10 years"""
+    """Some earnings for the common stock in each of the past ten years."""
     try:
         if 'annualReports' not in income_statement or not income_statement['annualReports']:
             return False, "no income statement data"
@@ -267,7 +271,7 @@ def check_rule_3_earnings_stability(income_statement: Dict) -> Tuple[bool, str]:
 
 
 def check_rule_4_dividend_record(overview: Dict, dividends: Dict) -> Tuple[bool, str]:
-    """Rule 4: Uninterrupted dividends >= 20 years"""
+    """Uninterrupted payments for at least the past 20 years."""
     try:
         dividend_yield = get_field(overview, 'DividendYield')
         
@@ -311,7 +315,7 @@ def check_rule_4_dividend_record(overview: Dict, dividends: Dict) -> Tuple[bool,
 
 
 def check_rule_5_earnings_growth(income_statement: Dict, balance_sheet: Dict) -> Tuple[bool, str]:
-    """Rule 5: EPS growth > 33.3% (3-year averages, 10-year period)"""
+    """A minimum increase of at least one-third in per-share earnings in the past ten years using three-year averages at the beginning and end."""
     try:
         if 'annualReports' not in income_statement or len(income_statement['annualReports']) < 10:
             years = len(income_statement.get('annualReports', []))
@@ -365,7 +369,7 @@ def check_rule_5_earnings_growth(income_statement: Dict, balance_sheet: Dict) ->
 
 
 def check_rule_6_pe_ratio(overview: Dict, income_statement: Dict, balance_sheet: Dict) -> Tuple[bool, str]:
-    """Rule 6: P/E < 15 (3-year average earnings)"""
+    """Current price should not be more than 15 times average earnings of the past three years."""
     try:
         price = get_field(overview, '50DayMovingAverage')
         
@@ -407,7 +411,7 @@ def check_rule_6_pe_ratio(overview: Dict, income_statement: Dict, balance_sheet:
 
 
 def check_rule_7_price_to_book(overview: Dict) -> Tuple[bool, str]:
-    """Rule 7: P/B < 1.5"""
+    """Current price should not be more than 1½ times the book value last reported."""
     try:
         pb_ratio = get_field(overview, 'PriceToBookRatio')
         
