@@ -4,8 +4,8 @@ Evaluate stocks against Graham's 7 Rules for Defensive Investors
 
 Rules:
 1. Market cap > $10B
-2. Current Ratio > 2.0 AND Long-term debt < Working Capital
-   (Utilities: debt/equity < 2)
+2. Utilities: debt/equity < 2
+   Non-utilities: Current Ratio > 2.0 AND Long-term debt < Working Capital
 3. Positive earnings in each of past 10 years
 4. Uninterrupted dividends >= 20 years
 5. EPS growth > 33.3% (3-year averages, 10-year period)
@@ -165,8 +165,8 @@ def check_rule_1_size(overview: Dict) -> Tuple[bool, str]:
         return False, f"error ({str(e)})"
 
 
-def check_rule_2_financial_condition(balance_sheet: Dict, overview: Dict) -> Tuple[bool, str]:
-    """Rule 2: Current Ratio > 2.0 AND long-term debt < Working Capital (Utilities: debt/equity < 2)"""
+def check_rule_2_financial_condition(balance_sheet: Dict, income_statement: Dict, overview: Dict) -> Tuple[bool, str]:
+    """Rule 2: Utilities check debt/equity < 2; Non-utilities check current ratio > 2 AND long-term debt < working capital; Print interest coverage (7yr) for all"""
     try:
         if 'annualReports' not in balance_sheet or not balance_sheet['annualReports']:
             return False, "no balance sheet data"
@@ -182,27 +182,44 @@ def check_rule_2_financial_condition(balance_sheet: Dict, overview: Dict) -> Tup
         # Calculate debt/equity ratio
         debt_to_equity_ratio = total_debt / total_equity if total_equity > 0 else None
         
+        # Calculate interest coverage for past 7 years (for all companies)
+        interest_coverage_list = []
+        if 'annualReports' in income_statement and income_statement['annualReports']:
+            for i, report in enumerate(income_statement['annualReports'][:7]):
+                try:
+                    ebit = get_field(report, 'ebit')
+                    interest_expense = get_field(report, 'interestExpense')
+                    if interest_expense > 0:
+                        coverage = ebit / interest_expense
+                        interest_coverage_list.append(f"{coverage:.2f}")
+                    else:
+                        interest_coverage_list.append("N/A")
+                except:
+                    interest_coverage_list.append("N/A")
+        
+        interest_coverage_str = f"7-yr interest coverage: [{', '.join(interest_coverage_list)}]" if interest_coverage_list else "Interest coverage: N/A"
+        
         # Check if utility
         sector = overview.get('Sector', '').lower()
         is_utility = sector == 'utilities'
         
         if is_utility:
-            # Utilities: debt/equity < 2 (used as criteria)
+            # Utilities: debt/equity < 2
             passed = debt_to_equity_ratio is not None and debt_to_equity_ratio < 2.0
             
             if debt_to_equity_ratio is None:
-                msg = f"utility debt/equity N/A (negative equity)"
+                msg = f"debt/equity N/A (negative equity), {interest_coverage_str}"
             elif passed:
-                msg = f"utility debt/equity {debt_to_equity_ratio:.2f}"
+                msg = f"debt/equity {debt_to_equity_ratio:.2f}, {interest_coverage_str}"
             else:
-                msg = f"utility debt/equity {debt_to_equity_ratio:.2f} (>= 2.0)"
+                msg = f"debt/equity {debt_to_equity_ratio:.2f} (>= 2.0), {interest_coverage_str}"
             
             return passed, msg
         else:
-            # Industrials: current ratio > 2.0 AND long-term debt < working capital
+            # Non-utilities: current ratio > 2.0 AND long-term debt < working capital
             current_assets = get_field(latest, 'totalCurrentAssets')
             current_liabilities = get_field(latest, 'totalCurrentLiabilities')
-            # long_term_debt already fetched above for debt/equity calculation
+            # long_term_debt already fetched above
             
             current_ratio = current_assets / current_liabilities
             working_capital = current_assets - current_liabilities
@@ -221,11 +238,7 @@ def check_rule_2_financial_condition(balance_sheet: Dict, overview: Dict) -> Tup
             else:
                 parts.append(f"long-term debt ${long_term_debt/1e6:.1f}M (>= working capital ${working_capital/1e6:.1f}M)")
             
-            # Always show debt/equity ratio (informational only for non-utilities)
-            if debt_to_equity_ratio is not None:
-                parts.append(f"debt/equity {debt_to_equity_ratio:.2f}")
-            else:
-                parts.append(f"debt/equity N/A (negative equity)")
+            parts.append(interest_coverage_str)
             
             msg = ", ".join(parts)
             return (ratio_ok and debt_ok), msg
@@ -292,7 +305,7 @@ def check_rule_4_dividend_record(overview: Dict, dividends: Dict) -> Tuple[bool,
         if consecutive_years >= Config.MIN_DIVIDEND_YEARS:
             return True, f"dividend yield {dividend_yield*100:.2f}%, {consecutive_years} consecutive years"
         else:
-            return False, f"only {consecutive_years} consecutive years (need >= {Config.MIN_DIVIDEND_YEARS})"
+            return False, f"only {consecutive_years} consecutive years (< {Config.MIN_DIVIDEND_YEARS})"
     except Exception as e:
         return False, f"error ({str(e)})"
 
@@ -429,7 +442,7 @@ def evaluate_stock(ticker: str, client: AlphaVantageClient, verbose: bool = Fals
         
         rules = [
             ('Rule 1 (adequate size)', check_rule_1_size(overview)),
-            ('Rule 2 (strong financial condition)', check_rule_2_financial_condition(balance_sheet or {}, overview)),
+            ('Rule 2 (strong financial condition)', check_rule_2_financial_condition(balance_sheet or {}, income_statement or {}, overview)),
             ('Rule 3 (earnings stability)', check_rule_3_earnings_stability(income_statement or {})),
             ('Rule 4 (dividend record)', check_rule_4_dividend_record(overview, dividends or {})),
             ('Rule 5 (earnings growth)', check_rule_5_earnings_growth(income_statement or {}, balance_sheet or {})),
