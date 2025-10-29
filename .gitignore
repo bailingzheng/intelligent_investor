@@ -2,7 +2,7 @@
 config.py
 
 # Output files
-screening_results*.txt
+*.txt
 
 # Python
 __pycache__/
