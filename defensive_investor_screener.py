@@ -19,7 +19,7 @@ warnings.filterwarnings('ignore')
 class Config:
     """Configuration for the screener."""
     # API Settings
-    API_CALLS_PER_STOCK = 4  # Overview, Income Statement, Balance Sheet, Dividends
+    API_CALLS_PER_STOCK = 5  # Overview, Income Statement, Balance Sheet, Dividends, Quote
     CALLS_PER_MINUTE = 5
     MAX_DAILY_CALLS = 25  # Free tier limit
     
@@ -122,6 +122,10 @@ class AlphaVantageClient:
     def get_dividends(self, symbol: str) -> Optional[Dict]:
         """Get dividend history."""
         return self._make_request({'function': 'DIVIDENDS', 'symbol': symbol})
+    
+    def get_quote(self, symbol: str) -> Optional[Dict]:
+        """Get latest price quote."""
+        return self._get_data('GLOBAL_QUOTE', symbol)
 
 
 # ============================================================================
@@ -358,10 +362,12 @@ def check_rule_5_earnings_growth(income_statement: Dict, balance_sheet: Dict) ->
         return False, f"error ({str(e)})"
 
 
-def check_rule_6_pe_ratio(overview: Dict, income_statement: Dict, balance_sheet: Dict) -> Tuple[bool, str]:
+def check_rule_6_pe_ratio(quote: Dict, income_statement: Dict, balance_sheet: Dict) -> Tuple[bool, str]:
     """Current price should not be more than 15 times average earnings of the past three years."""
     try:
-        price = get_field(overview, '50DayMovingAverage')
+        if 'Global Quote' not in quote:
+            return False, "current price not available"
+        price = get_field(quote['Global Quote'], '05. price')
         
         if 'annualReports' not in income_statement or len(income_statement['annualReports']) < 3:
             return False, "need 3 years of earnings data"
@@ -433,6 +439,7 @@ def evaluate_stock(ticker: str, client: AlphaVantageClient, verbose: bool = Fals
         income_statement = client.get_income_statement(ticker)
         balance_sheet = client.get_balance_sheet(ticker)
         dividends = client.get_dividends(ticker)
+        quote = client.get_quote(ticker)
         
         rules = [
             ('Rule 1 (adequate size)', check_rule_1_size(overview)),
@@ -440,14 +447,14 @@ def evaluate_stock(ticker: str, client: AlphaVantageClient, verbose: bool = Fals
             ('Rule 3 (earnings stability)', check_rule_3_earnings_stability(income_statement or {})),
             ('Rule 4 (dividend record)', check_rule_4_dividend_record(overview, dividends or {})),
             ('Rule 5 (earnings growth)', check_rule_5_earnings_growth(income_statement or {}, balance_sheet or {})),
-            ('Rule 6 (moderate P/E)', check_rule_6_pe_ratio(overview, income_statement or {}, balance_sheet or {})),
+            ('Rule 6 (moderate P/E)', check_rule_6_pe_ratio(quote or {}, income_statement or {}, balance_sheet or {})),
             ('Rule 7 (moderate P/B)', check_rule_7_price_to_book(overview)),
         ]
         
         results = {
             'ticker': ticker,
             'company_name': overview.get('Name', ticker),
-            'current_price': overview.get('50DayMovingAverage', 'N/A'),
+
             'rules_passed': [],
             'rules_failed': [],
             'rule_details': {},
